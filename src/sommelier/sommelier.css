@@ -1,0 +1,173 @@
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&display=swap');
+/* Scoped to .sommelier-root so sommelier variables don't override main app's :root */
+.sommelier-root{
+  --bg:#060610;--panel:#0a0a18;--border:#14142a;--text:#e0e0e8;--sub:#6a6a8e;--accent:#64ffda;
+  --topbar:48px;  /* Top bar reserved height — matches demo header */
+  --dL:0.4;       /* Left divider: top intercept at 40% of W along topbar bottom */
+  --dR:0.6;       /* Right divider: bottom intercept at 60% of W along screen bottom */
+}
+/* Standalone root: fills viewport */
+.sommelier-root{margin:0;padding:0;box-sizing:border-box;font-family:'Noto Sans SC',sans-serif;background:var(--bg);color:var(--text);height:100vh;overflow:hidden;position:relative}
+/* Embedded root: fills parent container */
+.sommelier-root.sommelier-embedded{height:100%;width:100%;position:absolute;inset:0}
+/* Top bar — only in standalone mode */
+.topbar{position:fixed;top:0;left:0;right:0;height:var(--topbar);background:rgba(6,6,16,.95);z-index:50;border-bottom:1px solid rgba(255,255,255,.04);backdrop-filter:blur(12px)}
+/* Stage: below topbar in standalone, fills container in embedded */
+.stage{position:fixed;top:var(--topbar);left:0;right:0;bottom:0;background:var(--bg);overflow:hidden}
+.sommelier-embedded .stage{position:absolute;top:0;left:0;right:0;bottom:0}
+/* When parent .view is not active, prevent stage from intercepting clicks on other tabs */
+.view:not(.active) .stage{pointer-events:none;visibility:hidden}
+/* Three zones — clip-paths set by JS to match parallelogram geometry */
+.zone{position:absolute;inset:0}
+/* UL & LR zones sit ABOVE the page scroller so they naturally cover page edges.
+   Mid zone is below scroller (provides the background color). */
+.zone-ul{background:var(--bg);z-index:6}
+.zone-mid{background:var(--panel);z-index:1;overflow:hidden}
+#midCanvas{position:absolute;inset:0;width:100%;height:100%;z-index:3;pointer-events:none}
+.zone-lr{background:var(--panel);z-index:6}
+/* ----- UL ZONE: Möbius visualization ----- */
+.ul-hdr{position:absolute;top:16px;left:22px;font-size:15px;font-weight:400;color:var(--sub);letter-spacing:4px;z-index:5}
+.ul-hdr b{color:var(--accent);font-weight:600}
+#sC{display:block;width:100%;height:100%;position:absolute;inset:0}
+.tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .2s,transform .2s;background:rgba(6,6,16,.97);border:1px solid rgba(100,255,218,.06);border-radius:16px;padding:16px 20px;min-width:220px;backdrop-filter:blur(24px);box-shadow:0 20px 60px rgba(0,0,0,.8);z-index:20;transform:translateY(8px)}
+.tip.show{opacity:1;transform:translateY(0)}
+.tip .tc{font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:6px}
+.tip .tn{font-size:15px;font-weight:500;color:#fff;margin-bottom:4px}
+.tip .td{font-size:11px;color:var(--sub)}.tip .ts{font-size:12px;margin-top:8px}
+.tip .tf{margin-top:8px;display:flex;gap:4px;flex-wrap:wrap}
+.tip .tt{font-size:10px;padding:2px 8px;border-radius:10px;border:1px solid rgba(255,255,255,.06);color:var(--sub)}
+/* Legend sidebar — collapsed thin strip on left edge, expands on hover */
+.lgd{position:absolute;bottom:0;left:0;top:auto;display:flex;flex-direction:column;gap:6px;
+  width:36px;max-height:60vh;overflow:hidden;z-index:14;pointer-events:auto;
+  padding:10px 6px;background:rgba(6,6,16,.92);border-right:1px solid rgba(255,255,255,.04);
+  border-radius:0 12px 12px 0;backdrop-filter:blur(12px);
+  transition:width .35s cubic-bezier(.4,0,.2,1),padding .35s cubic-bezier(.4,0,.2,1),opacity .3s;opacity:.6}
+.lgd:hover{width:180px;padding:12px 14px;opacity:1;overflow-y:auto}
+.lgd i{display:flex;align-items:center;gap:6px;font-size:11px;color:var(--sub);
+  padding:4px 0;font-style:normal;white-space:nowrap;overflow:hidden;min-height:22px}
+.lgd i b{width:7px;height:7px;border-radius:50%;display:block;flex-shrink:0}
+/* Collapsed: only show color dots */
+.lgd:not(:hover) i{font-size:0}
+.lgd:not(:hover) i b{width:8px;height:8px;margin:0 auto}
+.lgd:not(:hover) i span{display:none}
+/* Tab indicator below the legend */
+.lgd-tab{position:absolute;bottom:4px;left:42px;font-size:10px;color:var(--sub);opacity:.5;
+  pointer-events:none;white-space:nowrap;z-index:14;transition:opacity .3s}
+.lgd:hover ~ .lgd-tab{opacity:0}
+/* ----- MID ZONE: Chat ----- */
+.chat-wrap{position:absolute;inset:0;pointer-events:none;z-index:8}
+.chat-wrap>*{pointer-events:auto}
+
+/* Rails: invisible full-viewport containers whose children are absolutely positioned along the two diagonals. */
+.rail{position:absolute;inset:0;pointer-events:none}
+.rail .msg{pointer-events:auto}
+
+/* Each message pill: compact, soft, anchored to its (left, top) point. Transform keeps the anchor at a specific corner. */
+.sommelier-root .msg{position:absolute;display:flex;gap:10px;align-items:flex-start;max-width:min(56vw,720px);min-width:220px;animation:mi .4s ease both;transition:opacity .3s;
+  /* Reset global.css .msg overrides */
+  padding:0;background:none;border:none;border-radius:0;align-self:auto}
+@keyframes mi{from{opacity:0;filter:blur(2px)}to{opacity:1;filter:none}}
+.msg .mb{padding:10px 14px;border-radius:18px;font-size:13px;line-height:1.55;backdrop-filter:blur(14px)}
+.sommelier-root .msg.ai{transform-origin:top left;background:none;border:none}
+.sommelier-root .msg.ai .mb{background:rgba(14,14,28,.72);border:1px solid rgba(255,255,255,.07);border-top-left-radius:6px;color:var(--text)}
+.sommelier-root .msg.user{flex-direction:row-reverse;transform-origin:bottom right;background:none;border:none}
+.sommelier-root .msg.user .mb{background:linear-gradient(135deg,rgba(34,44,64,.78),rgba(20,26,42,.78));border:1px solid rgba(255,255,255,.06);border-bottom-right-radius:6px;color:#f2f4ff}
+.msg .mti{font-size:10px;color:var(--sub);margin-top:4px;letter-spacing:.5px}
+.msg.user .mti{text-align:right}
+.msg.faded{opacity:.45;filter:saturate(.7)}
+/* Turn divider — a subtle diagonal line between conversation rounds */
+.turn-div{position:absolute;height:1px;pointer-events:none;
+  background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.06) 15%,rgba(100,255,218,.08) 50%,rgba(255,255,255,.06) 85%,transparent 100%);
+  box-shadow:0 0 6px rgba(100,255,218,.03)}
+/* Page scroll container — NO clip-path on the scroller itself.
+   Each .chat-page carries its OWN parallelogram clip-path (set by JS) that moves WITH its transform.
+   UL & LR zones (z-index:6) sit above to cover triangular areas.
+   overflow:hidden — NO native scroll. Wheel events drive a virtual scroll variable (_vScroll).
+   This guarantees the base page never jitters: there is no native scroll to fight. */
+.page-scroller{position:absolute;inset:0;overflow:hidden;z-index:4}
+/* Each page carries its OWN parallelogram clip-path (set by JS).
+   The clip-path moves WITH the page's transform, so the visible shape is always a parallelogram.
+   UL & LR zones (z-index:6) sit above and cover the triangular areas. */
+.chat-page{position:absolute;left:0;width:100%;will-change:transform,opacity,filter;
+  background:transparent}
+.chat-page.archived{pointer-events:none}
+/* Page indicator dots */
+.page-dots{position:fixed;bottom:14px;left:50%;transform:translateX(-50%);display:flex;gap:6px;z-index:52}
+.page-dots .dot{width:6px;height:6px;border-radius:50%;background:rgba(255,255,255,.12);transition:all .3s}
+.page-dots .dot.active{background:var(--accent);box-shadow:0 0 8px rgba(100,255,218,.3)}
+/* AI avatar — the brand ✦ logo. Consistent across the product as the AI mark. */
+.mav{flex-shrink:0;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:13px;background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.12),rgba(100,255,218,.08) 55%,rgba(58,134,255,.05));border:1px solid rgba(255,255,255,.08);color:var(--accent);box-shadow:inset 0 1px 0 rgba(255,255,255,.12),0 4px 12px rgba(0,0,0,.35)}
+.uav{flex-shrink:0;width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;background:linear-gradient(135deg,#2a3550,#1a2238);border:1px solid rgba(255,255,255,.08);color:#e0e0e8;box-shadow:inset 0 1px 0 rgba(255,255,255,.10),0 4px 12px rgba(0,0,0,.35)}
+
+/* Reference chips and preview cards inside messages */
+.rb{display:inline-flex;align-items:center;gap:3px;background:rgba(255,255,255,.04);color:var(--accent);padding:2px 8px;border-radius:10px;font-size:11px;cursor:pointer;border:1px solid rgba(100,255,218,.14);margin:3px 3px 0 0}.rb:hover{background:rgba(100,255,218,.12)}
+.pc{margin-top:8px;padding:12px;border-radius:10px;background:rgba(255,255,255,.03);border:1px solid rgba(100,255,218,.12)}
+.pc h4{font-size:13px;color:var(--accent);margin-bottom:6px}.pc p{font-size:12px;color:var(--sub)}
+.pc .cb{margin-top:8px;padding:6px 16px;border-radius:8px;border:1px solid var(--accent);background:rgba(100,255,218,.06);color:var(--accent);font-size:12px;cursor:pointer}
+
+/* Input box — centered, almost-invisible body with water-droplet refraction on the rim. */
+.ciw{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:min(44vw,620px);display:flex;gap:10px;align-items:center;padding:10px 10px 10px 18px;
+  /* Nearly transparent body — you see the background through it */
+  background:rgba(255,255,255,.006);
+  backdrop-filter:blur(12px) saturate(1.4);
+  -webkit-backdrop-filter:blur(12px) saturate(1.4);
+  border:1px solid rgba(255,255,255,.045);
+  border-radius:40px;
+  /* Water-droplet lighting: bright top rim + gentle depth toward the bottom */
+  box-shadow:
+    inset 0 1.6px 0 rgba(255,255,255,.28),
+    inset 2px 0 1px rgba(255,255,255,.14),
+    inset -1.5px 0 1px rgba(255,255,255,.03),
+    inset 0 -1.6px 0 rgba(255,255,255,.05),
+    inset 0 -22px 40px rgba(0,0,0,.14),
+    0 14px 44px rgba(0,0,0,.42),
+    0 0 0 1px rgba(255,255,255,.012),
+    0 0 80px rgba(255,255,255,.012);
+  z-index:10}
+/* Refractive gradient border — mimics light bending around the droplet edge */
+.ciw::before{content:'';position:absolute;inset:0;border-radius:inherit;padding:1px;background:linear-gradient(135deg,rgba(255,255,255,.68) 0%,rgba(255,255,255,.14) 18%,rgba(255,255,255,.02) 48%,rgba(255,255,255,.06) 72%,rgba(255,255,255,.50) 100%);-webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);-webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none}
+/* Catch-light — the small bright highlight a water droplet shows near its top-left */
+.ciw::after{content:'';position:absolute;left:7%;top:3px;width:26%;height:2px;background:linear-gradient(90deg,transparent 0%,rgba(255,255,255,.92) 45%,rgba(255,255,255,.28) 78%,transparent 100%);border-radius:50%;filter:blur(.6px);pointer-events:none}
+.cin{flex:1;padding:10px 4px;border-radius:12px;border:none;background:transparent;color:var(--text);font-size:13.5px;outline:none;font-family:inherit}.cin::placeholder{color:rgba(200,210,230,.35)}
+.atb{width:36px;height:36px;border-radius:50%;border:1px solid rgba(255,255,255,.08);background:rgba(255,255,255,.04);color:rgba(220,225,240,.65);font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .2s}.atb:hover{background:rgba(255,255,255,.08);color:#fff;border-color:rgba(255,255,255,.16)}
+.sbtn{width:36px;height:36px;border-radius:50%;border:none;background:linear-gradient(135deg,rgba(255,255,255,.18),rgba(255,255,255,.06));color:#fff;font-size:14px;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 4px 12px rgba(0,0,0,.3);transition:all .2s}.sbtn:hover{background:linear-gradient(135deg,rgba(255,255,255,.26),rgba(255,255,255,.10))}
+/* Preview chip for attached images, sits above input */
+.atch{position:absolute;left:50%;bottom:calc(50% + 40px);transform:translateX(-50%);display:flex;gap:8px;pointer-events:auto;z-index:10}
+.atch .ap{position:relative;width:52px;height:52px;border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.12);box-shadow:0 6px 20px rgba(0,0,0,.5)}
+.atch .ap img{width:100%;height:100%;object-fit:cover}
+.atch .ap button{position:absolute;top:2px;right:2px;width:18px;height:18px;border-radius:50%;border:none;background:rgba(0,0,0,.7);color:#fff;font-size:11px;cursor:pointer;display:flex;align-items:center;justify-content:center}
+/* ----- LR ZONE: Source tracing ----- */
+#srcCanvas{position:absolute;inset:0;width:100%;height:100%}
+.rh{position:absolute;bottom:20px;right:30px;font-size:15px;font-weight:400;color:var(--sub);letter-spacing:4px;z-index:8}
+.rh b{color:var(--accent);font-weight:600}
+/* Source tracing tooltip (appears on hover over focus-lens planets) */
+.src-tip{position:fixed;pointer-events:none;opacity:0;transition:opacity .25s,transform .25s;z-index:20;
+  background:rgba(6,6,16,.95);border:1px solid rgba(255,255,255,.08);border-radius:14px;
+  padding:14px 18px;min-width:180px;backdrop-filter:blur(20px);
+  box-shadow:0 16px 48px rgba(0,0,0,.7);z-index:20;transform:translateY(6px)}
+.src-tip.show{opacity:1;transform:translateY(0);pointer-events:auto}
+.src-tip .st-cat{font-size:10px;font-weight:700;letter-spacing:2px;margin-bottom:4px}
+.src-tip .st-name{font-size:14px;font-weight:500;color:#fff;margin-bottom:3px}
+.src-tip .st-meta{font-size:11px;color:var(--sub);margin-bottom:2px}
+.src-tip .st-score{font-size:12px;margin-top:4px}
+.src-tip .st-tags{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.src-tip .st-tag{font-size:9px;padding:2px 7px;border-radius:8px;border:1px solid rgba(255,255,255,.06);color:var(--sub)}
+.src-tip .st-fb{display:flex;gap:8px;margin-top:8px;pointer-events:auto}
+.src-tip .st-fb button{padding:4px 12px;border-radius:14px;border:1px solid rgba(255,255,255,.08);
+  background:rgba(255,255,255,.04);color:var(--sub);font-size:11px;cursor:pointer;transition:all .2s;font-family:inherit}
+.src-tip .st-fb button:hover{background:rgba(255,255,255,.1)}
+.src-tip .st-fb button.v-up{border-color:rgba(100,255,218,.4);color:var(--accent);background:rgba(100,255,218,.08)}
+.src-tip .st-fb button.v-down{border-color:rgba(255,80,80,.4);color:#ff5050;background:rgba(255,80,80,.08)}
+.mo{position:fixed;inset:0;background:rgba(0,0,0,.8);backdrop-filter:blur(12px);z-index:200;display:none;align-items:center;justify-content:center}.mo.show{display:flex}
+.mc{width:440px;max-height:80vh;background:var(--panel);border:1px solid var(--border);border-radius:16px;overflow:hidden;animation:su .3s ease;position:relative}
+@keyframes su{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:none}}
+.mcbn{height:5px;width:100%}
+.mbd{padding:28px;overflow-y:auto;max-height:calc(80vh - 5px)}
+.mbd h3{font-size:18px;font-weight:600;margin-bottom:4px}
+.mbd .mcc{font-size:11px;font-weight:700;letter-spacing:1px;margin-bottom:12px}
+.mbd .mr{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.03);font-size:13px}
+.mbd .mr span:first-child{color:var(--sub)}
+.mbd .mn{margin-top:12px;font-size:13px;line-height:1.8;color:var(--sub)}
+.mbd .mtags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+.mbd .mtg{padding:3px 10px;border-radius:20px;font-size:11px;border:1px solid rgba(255,255,255,.06);color:var(--sub)}
+.mx{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;border:1px solid var(--border);background:var(--panel);color:var(--sub);font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:201}.mx:hover{border-color:var(--accent);color:var(--accent)}
