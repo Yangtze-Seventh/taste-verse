@@ -5,12 +5,15 @@ const _EMBEDDED=!!opts.embedded; // true when inside main app (no own topbar)
 const _CONTAINER=opts.container||null; // parent element for sizing
 
 // ============ USER PROFILE ============
-// Dynamic: read from main app's user badge, fallback to defaults
+// Dynamic: read from main app's user badge, fallback to defaults.
+// Main app renders either <img> (uploaded avatar) or text (initial letter)
+// inside #user-avatar — detect both so the center orb shows the real photo.
 const _userEl=document.getElementById('user-avatar');
 const _emailEl=document.getElementById('user-email-display');
-const _userInitial=_userEl?_userEl.textContent.trim()||'U':'U';
-const _userName=_emailEl?_emailEl.textContent.trim()||'User':'User';
-const USER={name:_userName,initial:_userInitial,avatarUrl:''};
+const _avatarImgEl=_userEl?_userEl.querySelector('img'):null;
+const _userInitial=_userEl?(_userEl.textContent.trim()||'U'):'U';
+const _userName=_emailEl?(_emailEl.textContent.trim()||'User'):'User';
+const USER={name:_userName,initial:_userInitial,avatarUrl:_avatarImgEl?_avatarImgEl.src:''};
 
 // ============ DATA: bridge from main app or use built-in demo ============
 // Helper: parse hex color string "#RRGGBB" into {r,g,b}
