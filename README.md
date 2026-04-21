@@ -1,4 +1,3 @@
-<img width="1068" height="640" alt="gif图" src="https://github.com/user-attachments/assets/81c39584-f20f-4d5e-91f6-1a1523ee0f8d" />
 # 味迹 TasteVerse
 
 **Your Personal Tasting Universe** — Record, visualize, and explore your tasting journey through an immersive 3D star map.
