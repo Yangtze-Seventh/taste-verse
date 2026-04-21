@@ -1,41 +1,213 @@
 # 味迹 TasteVerse
 
-个人品鉴记录 + 3D 星图可视化应用。邮箱验证码登录，每个账号的数据独立存储在 localStorage；保存品鉴时同步到 EverOS 云端记忆。
+**Your Personal Tasting Universe** — Record, visualize, and explore your tasting journey through an immersive 3D star map.
 
-## 本地开发
+> 味有归处，心有所记 — *Taste has a home, memory has a record.*
+
+<!-- Screenshot: Login screen with particle animation -->
+<!-- INSERT IMAGE: screenshots/login.png -->
+
+## Overview
+
+TasteVerse is a personal tasting journal that transforms your flavor experiences into an interactive 3D universe. Every coffee, tea, wine, meal, or dessert you taste becomes a glowing star in your personal cosmos. Shared flavors form constellation-like links, revealing hidden connections across your palate.
+
+Built with React and Three.js, TasteVerse combines rich data entry with a visually stunning WebGL-powered exploration interface, an AI-powered sommelier chat assistant, and optional cloud synchronization.
+
+## Features
+
+### 🌌 3D Universe Visualization
+
+The flagship feature — a force-directed 3D star map where each tasting record is a node.
+
+- **Nodes** are glowing spheres sized by score and visit count, with orbiting rings and comet particles
+- **Links** connect related tastings: same-category, shared tags, and taxonomy relationships
+- **Environment** includes 7,000+ stars, nebula clouds, dust particles, and dramatic multi-color lighting
+- Interactive orbit camera with click-to-focus, search filtering, and category isolation
+
+<!-- Screenshot: Universe View with multiple nodes and visible links -->
+<!-- INSERT IMAGE: screenshots/universe.png -->
+
+### 📝 Tasting Records
+
+Comprehensive data capture for every tasting experience:
+
+- Product name with **fuzzy duplicate detection**
+- 0–10 scoring system
+- Flavor tags (freeform, enter-to-add)
+- Tasting notes
+- Price tracking (unit price or per-person average)
+- Location / venue
+- Photo upload
+- **Visit tracking** — re-taste the same product over time, building a longitudinal flavor profile
+
+<!-- Screenshot: Record creation form -->
+<!-- INSERT IMAGE: screenshots/record-form.png -->
+
+### 🗂️ Category Management
+
+Organize tastings with a flexible two-level taxonomy:
+
+- **5 default categories:** Coffee ☕, Tea 🍵, Wine 🍷, Chinese Food 🥢, Dessert 🍰
+- Create **custom categories** with your own icon, name, color, and parent group
+- Grid view with per-category statistics (average score, record count, popularity)
+- Click any category to see all its records or isolate it in the 3D graph
+
+<!-- Screenshot: Categories grid view -->
+<!-- INSERT IMAGE: screenshots/categories.png -->
+
+### 📅 Calendar View
+
+Browse your tasting history by date:
+
+- Monthly calendar with colored dots marking tasting days
+- Day detail panel showing all records for the selected date
+- Mini 3D cluster visualization per day
+- Tag clouds and taste profiles for each day
+
+<!-- Screenshot: Calendar panel with a selected day -->
+<!-- INSERT IMAGE: screenshots/calendar.png -->
+
+### 🤖 AI Sommelier
+
+An embedded AI chat assistant for intelligent tasting analysis:
+
+- Natural-language chat for flavor queries and recommendations
+- Image upload for product photo analysis
+- Semantic memory search (powered by EverOS) for recalling relevant past tastings
+- Distinctive **Möbius ring 3D visualization** with animated category ribbons
+
+<!-- Screenshot: AI Sommelier chat interface -->
+<!-- INSERT IMAGE: screenshots/sommelier.png -->
+
+### 🔍 Search & Discovery
+
+- **Graph Search:** Real-time keyword search across names, tags, and notes — matching nodes highlight in the 3D graph
+- **Semantic Search:** When connected to EverOS, hybrid keyword + vector search finds conceptually related tastings
+- **Category Filtering:** Click any legend item to isolate a category cluster
+
+### ☁️ Cloud Sync (Optional)
+
+- Automatic sync to **EverOS** (Evermind AI) on record creation
+- Full sync on app load when online
+- Status indicator in navbar (green = online, gray = offline)
+- **Fully offline-capable** — all core features work without cloud connectivity
+
+## Tech Stack
+
+| Layer | Technology | Purpose |
+|-------|-----------|---------|
+| Frontend | React 18.3 | UI rendering |
+| Build | Vite 5.4 | Dev server & bundling |
+| 3D Engine | Three.js 0.184 | WebGL rendering |
+| Graph | 3d-force-graph 1.73 | Force-directed layout |
+| Email | EmailJS 4 | Verification code delivery |
+| Backend | Vercel Serverless | API proxy for EverOS |
+| Cloud | EverOS (Evermind AI) | Sync & semantic search |
+| Storage | localStorage | Client-side persistence |
+| Fonts | Inter, Space Grotesk, Noto Sans SC | Typography (Latin + CJK) |
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js 18+
+- npm 9+
+
+### Local Development
 
 ```bash
+git clone https://github.com/your-username/taste-verse.git
+cd taste-verse
 npm install
 npm run dev     # http://localhost:5173
 ```
 
-注意：`/api/everos` 是 Vercel Serverless Function，本地 `npm run dev` 不会运行它。想在本地也触发云端同步：`npm i -g vercel && vercel dev`。
+> **Note:** The `/api/everos` endpoint is a Vercel Serverless Function and will not run with `npm run dev`. To enable cloud sync locally, use `vercel dev` instead:
+>
+> ```bash
+> npm i -g vercel
+> vercel dev
+> ```
 
-## 部署（Vercel）
+### Production Build
 
-在 Vercel 导入此仓库，框架会被自动识别为 Vite。配置环境变量：
+```bash
+npm run build   # outputs to /dist
+npm run preview # preview the production build
+```
 
-| Variable | Example |
-|---|---|
-| `EVEROS_UPSTREAM` | `https://api.evermind.ai/api/v1` |
-| `EVEROS_API_KEY`  | 在 https://everos.evermind.ai/api-keys 生成的 key（必填） |
+## Deployment (Vercel)
 
-配完环境变量后必须去 Deployments → 最新部署 → Redeploy 才会生效。
+1. Import this repository into [Vercel](https://vercel.com). The framework will be auto-detected as Vite.
 
-## 目录结构
+2. Set the following environment variables:
+
+   | Variable | Description | Example |
+   |----------|-------------|---------|
+   | `EVEROS_UPSTREAM` | EverOS API base URL | `https://api.evermind.ai/api/v1` |
+   | `EVEROS_API_KEY` | API key from [EverOS](https://everos.evermind.ai/api-keys) (required for cloud sync) | `ek_...` |
+
+3. After configuring environment variables, go to **Deployments → Latest → Redeploy** to apply them.
+
+## Project Structure
 
 ```
-src/
-├── App.jsx                      # DOM 壳，JSX 映射原 HTML body
-├── main.jsx                     # React 18 入口
-├── lib/
-│   ├── bootstrap.js             # 把 three / 3d-force-graph 挂到 window
-│   └── tasteverse.js            # 核心逻辑（3D 图 / 登录 / EverOS / 存储 …）
-├── sommelier/
-│   ├── AISommelier.jsx          # AI 品鉴师面板（"AI 品鉴师" tab）
-│   ├── sommelier-engine.js      # 对话 / 推荐引擎
-│   └── sommelier.css            # 品鉴师面板样式
-└── styles/global.css            # 逐字移植的原 <style>
-
-api/everos/[...path].js          # EverOS 云端代理（绕过 CORS）
+taste-verse/
+├── src/
+│   ├── App.jsx                    # Root component — login screen, nav, view routing
+│   ├── main.jsx                   # React 18 entry point
+│   ├── lib/
+│   │   ├── bootstrap.js           # Exposes Three.js & ForceGraph3D to window
+│   │   └── tasteverse.js          # Core engine: 3D graph, auth, CRUD, storage, EverOS sync
+│   ├── sommelier/
+│   │   ├── AISommelier.jsx        # AI Sommelier panel component
+│   │   ├── sommelier-engine.js    # Chat engine, recommendations, Möbius visualization
+│   │   └── sommelier.css          # Sommelier panel styles
+│   └── styles/
+│       └── global.css             # Global styles (dark space theme)
+├── api/
+│   └── everos/
+│       └── [...path].js           # Vercel serverless proxy for EverOS API (CORS)
+├── public/                        # Static assets
+├── index.html                     # SPA entry point
+├── vite.config.js                 # Vite config with Three.js chunk optimization
+├── vercel.json                    # Vercel rewrites & serverless config
+└── package.json
 ```
+
+## Data Storage
+
+TasteVerse is **offline-first**. All data is stored in the browser's `localStorage` with per-user namespacing:
+
+| Key | Content |
+|-----|---------|
+| `tv_session` | Current user session |
+| `tv_{email}_notes` | All tasting records |
+| `tv_{email}_taxonomy` | Category hierarchy |
+| `tv_{email}_categories` | Category metadata |
+| `tv_{email}_profile` | User profile (nickname, avatar, bio) |
+
+When EverOS is connected, records are additionally synced to the cloud for backup and semantic search.
+
+## Authentication
+
+TasteVerse uses a **passwordless email verification** flow:
+
+1. Enter your email address
+2. Receive a 6-digit verification code via EmailJS
+3. Enter the code to log in
+4. Session persists in localStorage for automatic re-login
+
+## Browser Requirements
+
+- WebGL support (required for Three.js 3D rendering)
+- Modern browser with ES6+ support (Chrome, Firefox, Safari, Edge)
+- localStorage API
+
+## License
+
+See [LICENSE](./LICENSE) for details.
+
+---
+
+*Built with ❤️ and a passion for flavor.*
