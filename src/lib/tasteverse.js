@@ -2,7 +2,7 @@
 // TasteVerse core logic — ported verbatim from original demo.html
 // Wrapped as an exported startApp() to be invoked inside a React
 // useEffect on mount. Depends on window.THREE, window.ForceGraph3D,
-// window.emailjs (set by bootstrap.js) and the full DOM from App.jsx.
+// and the full DOM from App.jsx.
 // ============================================================
 
 export function startApp() {
@@ -25,12 +25,11 @@ console.log('[TasteVerse] ForceGraph3D: OK, THREE: '+(typeof THREE!=='undefined'
 //  AUTH SYSTEM — email verification (MVP: localStorage)
 // ══════════════════════════════════════════════════
 var currentUser=null; // {email:'xxx@xxx.com'}
-var _verifyCode='';
 var _verifyEmail='';
+var _verifyHash='';   // HMAC hash from server
+var _verifyExpiry=0;  // expiry timestamp from server
 
 function storageKey(email,key){return 'tv_'+email.toLowerCase().trim()+'_'+key;}
-
-function generateCode(){return String(100000+Math.floor(Math.random()*900000));}
 
 // ── Login Particle Animation Engine ──
 var _loginAnim={running:false,raf:0,particles:[],ghostLayer:[],captureZone:null,morphing:false,emojiIdx:0};
@@ -333,25 +332,22 @@ function logout(){
         msg.textContent='请输入有效的邮箱地址';msg.className='login-msg error';return;
       }
       _verifyEmail=email;
-      _verifyCode=generateCode();
       btn.disabled=true;
       btn.textContent='发送中...';
       msg.textContent='正在发送验证码...';msg.className='login-msg';
 
-      // EmailJS config
-      var EJS_PUBLIC='0mIMBjlN2KBu2z6il';
-      var EJS_SERVICE='service_dch6nob';
-      var EJS_TEMPLATE='template_rq9qftd';
-
-      if(typeof emailjs==='undefined'){
-        msg.textContent='邮件服务加载失败，请刷新页面重试';msg.className='login-msg error';
-        btn.disabled=false;btn.textContent='发送验证码';return;
-      }
-      emailjs.init(EJS_PUBLIC);
-      emailjs.send(EJS_SERVICE,EJS_TEMPLATE,{
-        to_email:email,
-        code:_verifyCode
-      }).then(function(){
+      // Call backend to generate code and send email
+      fetch('/api/auth/send-code',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:email})
+      }).then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+      .then(function(result){
+        if(!result.ok){
+          throw new Error(result.data.error||'发送失败');
+        }
+        _verifyHash=result.data.hash;
+        _verifyExpiry=result.data.expiry;
         step='verify';
         verifyGroup.style.display='block';
         btn.disabled=false;
@@ -361,29 +357,47 @@ function logout(){
         msg.className='login-msg success';
         emailInput.disabled=true;
         setTimeout(function(){codeInput.focus();},100);
-      },function(err){
-        console.error('[TasteVerse] EmailJS error:',err);
-        msg.textContent='发送失败: '+(err.text||err.message||'请检查网络');msg.className='login-msg error';
+      }).catch(function(err){
+        console.error('[TasteVerse] send-code error:',err);
+        msg.textContent='发送失败: '+(err.message||'请检查网络');msg.className='login-msg error';
         btn.disabled=false;btn.textContent='重新发送';
       });
     }else{
       var code=codeInput.value.trim();
-      if(code!==_verifyCode){
-        msg.textContent='验证码错误，请重试';msg.className='login-msg error';return;
-      }
-      // Login success
-      currentUser={email:_verifyEmail};
-      try{localStorage.setItem('tv_session',JSON.stringify(currentUser));}catch(e){}
-      msg.textContent='登录成功！';msg.className='login-msg success';
+      if(!code){msg.textContent='请输入验证码';msg.className='login-msg error';return;}
       btn.disabled=true;
-      setTimeout(function(){
-        hideLoginScreen();
-        btn.disabled=false;
-        step='email';
-        emailInput.disabled=false;
-        loadUserData();
-        startApp();
-      },500);
+      btn.textContent='验证中...';
+
+      // Call backend to verify code against HMAC
+      fetch('/api/auth/verify-code',{
+        method:'POST',
+        headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({email:_verifyEmail,code:code,hash:_verifyHash,expiry:_verifyExpiry})
+      }).then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
+      .then(function(result){
+        if(!result.ok){
+          throw new Error(result.data.error||'验证失败');
+        }
+        // Login success
+        currentUser={email:_verifyEmail};
+        try{localStorage.setItem('tv_session',JSON.stringify(currentUser));}catch(e){}
+        msg.textContent='登录成功！';msg.className='login-msg success';
+        setTimeout(function(){
+          hideLoginScreen();
+          btn.disabled=false;
+          step='email';
+          emailInput.disabled=false;
+          loadUserData();
+          startApp();
+        },500);
+      }).catch(function(err){
+        console.error('[TasteVerse] verify-code error:',err);
+        var errMsg=err.message==='Code expired'?'验证码已过期，请重新发送':
+                   err.message==='Invalid code'?'验证码错误，请重试':
+                   '验证失败: '+(err.message||'请检查网络');
+        msg.textContent=errMsg;msg.className='login-msg error';
+        btn.disabled=false;btn.textContent='验证并登录';
+      });
     }
   };
 

@@ -3,6 +3,8 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    { "source": "/api/auth/send-code", "destination": "/api/auth/send-code" },
+    { "source": "/api/auth/verify-code", "destination": "/api/auth/verify-code" },
     { "source": "/api/everos/:path*", "destination": "/api/everos/[...path]" },
     { "source": "/((?!api).*)", "destination": "/index.html" }
   ]
