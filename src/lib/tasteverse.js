@@ -749,7 +749,7 @@ function calBuildMiniGraph(dayNotes){
     var c=CATEGORIES[n.cat]||{color:'#888',name:n.cat,icon:'📝'};
     var vc=(n.visits?n.visits.length:0)+1;
     gNodes.push({id:n.id,name:n.name,cat:n.cat,catName:c.name,catIcon:c.icon,color:c.color,
-      val:3+n.score*0.5+Math.log2(vc)*2.5,score:n.score,note:n.note,tags:n.tags,time:n.time,visits:vc,_noteRef:n});
+      val:3+n.score*0.5+(Math.log(vc)/Math.log(1.5))*3,score:n.score,note:n.note,tags:n.tags,time:n.time,visits:vc,_noteRef:n});
   });
 
   // Same-category links with similarity
@@ -1789,7 +1789,7 @@ function buildGraphData(){
     var c=CATEGORIES[n.cat]||{color:'#888',name:n.cat,icon:'📝'};
     var vc=(n.visits?n.visits.length:0)+1; // visit count (1=first tasting + visits)
     gN.push({id:n.id,name:n.name,cat:n.cat,catName:c.name,catIcon:c.icon,color:c.color,
-      val:3+n.score*0.5+Math.log2(vc)*2.5,score:n.score,note:n.note,tags:n.tags,time:n.time,visits:vc,price:n.price,_noteRef:n});
+      val:3+n.score*0.5+(Math.log(vc)/Math.log(1.5))*3,score:n.score,note:n.note,tags:n.tags,time:n.time,visits:vc,price:n.price,_noteRef:n});
     gL.push({source:n.id,target:'__c_'+n.cat,_hidden:true});
   });
 
@@ -2959,7 +2959,11 @@ function showDetail(note){
       +'<label>评分</label><div class="rt-score-row" id="rt-score-row"></div>'
       +'<label>风味标签</label><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px" id="rt-tags-row"><input type="text" id="rt-tag-input" placeholder="输入标签回车" style="flex:1;min-width:100px;padding:5px 10px;border-radius:12px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:11px;outline:none;font-family:inherit"></div>'
       +'<label>品鉴笔记</label><textarea id="rt-notes" placeholder="这次的感受..."></textarea>'
-      +'<label>本次价格 <span style="opacity:0.4;font-weight:400">（选填）</span></label><div style="display:flex;align-items:center;gap:6px"><input type="number" id="rt-price" placeholder="0.00" min="0" step="0.01" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="font-size:11px;color:var(--text3)">元</span></div>'
+      +'<label>本次价格 <span style="opacity:0.4;font-weight:400">（选填）</span></label>'
+      +'<div class="price-wrap"><div class="price-mode-toggle" id="rt-price-mode-toggle"><span class="price-mode sel" data-mode="unit">单价</span><span class="price-mode" data-mode="avg">人均</span></div>'
+      +'<div class="price-inputs"><div id="rt-price-unit-group" style="display:flex;align-items:center;gap:6px"><input type="number" id="rt-price" placeholder="0.00" min="0" step="0.01" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="font-size:11px;color:var(--text3)">元</span></div>'
+      +'<div id="rt-price-avg-group" style="display:none"><div style="display:flex;gap:8px;align-items:center"><input type="number" id="rt-price-total" placeholder="总价" min="0" step="0.01" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="color:var(--text3);font-size:12px">÷</span><input type="number" id="rt-price-people" placeholder="人数" min="1" step="1" value="2" style="width:68px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="font-size:11px;color:var(--text3)">人</span></div><div class="price-avg-result" id="rt-price-avg-result"></div></div>'
+      +'</div></div>'
       +'<div class="rt-actions"><button class="rt-btn rt-btn-cancel" id="rt-cancel">取消</button><button class="rt-btn rt-btn-save" id="rt-save">保存</button></div>'
     +'</div>'
     +(rel.length?'<div class="dp-rel"><h4>记忆关联 · '+rel.length+'</h4>'+rel.map(function(r){
@@ -3031,6 +3035,27 @@ function showDetail(note){
     }
   };
 
+  // Re-taste price mode toggle
+  var rtPriceMode='unit';
+  document.getElementById('rt-price-mode-toggle').onclick=function(e){
+    var t=e.target;
+    if(!t.dataset||!t.dataset.mode)return;
+    rtPriceMode=t.dataset.mode;
+    this.querySelectorAll('.price-mode').forEach(function(m){m.classList.toggle('sel',m.dataset.mode===rtPriceMode);});
+    document.getElementById('rt-price-unit-group').style.display=rtPriceMode==='unit'?'flex':'none';
+    document.getElementById('rt-price-avg-group').style.display=rtPriceMode==='avg'?'block':'none';
+    document.getElementById('rt-price-avg-result').textContent='';
+  };
+  function calcRtAvgPrice(){
+    var total=parseFloat(document.getElementById('rt-price-total').value)||0;
+    var people=parseInt(document.getElementById('rt-price-people').value)||1;
+    var result=document.getElementById('rt-price-avg-result');
+    if(total>0&&people>0){result.textContent='≈ 人均 ¥'+(total/people).toFixed(2);}
+    else{result.textContent='';}
+  }
+  document.getElementById('rt-price-total').oninput=calcRtAvgPrice;
+  document.getElementById('rt-price-people').oninput=calcRtAvgPrice;
+
   document.getElementById('btn-retaste').onclick=function(){
     rtForm.classList.toggle('open');
   };
@@ -3040,14 +3065,22 @@ function showDetail(note){
   document.getElementById('rt-save').onclick=function(){
     if(!rtScore){alert('请选择评分');return;}
     if(!note.visits)note.visits=[];
-    var rtPriceVal=parseFloat(document.getElementById('rt-price').value);
+    var rtPriceData=null;
+    if(rtPriceMode==='unit'){
+      var rtPriceVal=parseFloat(document.getElementById('rt-price').value);
+      if(rtPriceVal>0)rtPriceData={type:'unit',price:rtPriceVal};
+    }else{
+      var rtTotal=parseFloat(document.getElementById('rt-price-total').value)||0;
+      var rtPeople=parseInt(document.getElementById('rt-price-people').value)||1;
+      if(rtTotal>0)rtPriceData={type:'avg',total:rtTotal,people:rtPeople,price:+(rtTotal/rtPeople).toFixed(2)};
+    }
     var visitObj={
       score:rtScore,
       tags:rtTags.slice(),
       note:document.getElementById('rt-notes').value.trim(),
       time:new Date().toISOString().split('T')[0]
     };
-    if(rtPriceVal>0)visitObj.price={type:'unit',price:rtPriceVal};
+    if(rtPriceData)visitObj.price=rtPriceData;
     note.visits.push(visitObj);
     saveUserData();
     EverOS.update(note); // Update memory with new visit
