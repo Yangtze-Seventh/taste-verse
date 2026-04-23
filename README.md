@@ -3,9 +3,7 @@
 **Your Personal Tasting Universe** — Record, visualize, and explore your tasting journey through an immersive 3D star map.
 
 > 味有归处，心有所记 — *Taste has a home, memory has a record.*
-
-<!-- Screenshot: Login screen with particle animation -->
-<!-- INSERT IMAGE: screenshots/login.png -->
+<img width="1068" height="640" alt="gif图" src="https://github.com/user-attachments/assets/bac62a73-e4c2-4d45-a19d-269fbba947a5" />
 
 ## Overview
 
@@ -24,8 +22,8 @@ The flagship feature — a force-directed 3D star map where each tasting record 
 - **Environment** includes 7,000+ stars, nebula clouds, dust particles, and dramatic multi-color lighting
 - Interactive orbit camera with click-to-focus, search filtering, and category isolation
 
-<!-- Screenshot: Universe View with multiple nodes and visible links -->
-<!-- INSERT IMAGE: screenshots/universe.png -->
+<img width="1722" height="1178" alt="星云" src="https://github.com/user-attachments/assets/3e7541c2-4300-4864-8145-7d9dd1c8027b" />
+
 
 ### 📝 Tasting Records
 
@@ -40,8 +38,8 @@ Comprehensive data capture for every tasting experience:
 - Photo upload
 - **Visit tracking** — re-taste the same product over time, building a longitudinal flavor profile
 
-<!-- Screenshot: Record creation form -->
-<!-- INSERT IMAGE: screenshots/record-form.png -->
+<img width="539" height="988" alt="记录新品鉴" src="https://github.com/user-attachments/assets/a11f3cb3-1c1e-4980-8138-b6b2bbc66a4b" />
+
 
 ### 🗂️ Category Management
 
@@ -52,8 +50,8 @@ Organize tastings with a flexible two-level taxonomy:
 - Grid view with per-category statistics (average score, record count, popularity)
 - Click any category to see all its records or isolate it in the 3D graph
 
-<!-- Screenshot: Categories grid view -->
-<!-- INSERT IMAGE: screenshots/categories.png -->
+<img width="539" height="988" alt="记录新品鉴" src="https://github.com/user-attachments/assets/822cd39e-5f42-41fd-a2cb-8dc785bcecf7" />
+
 
 ### 📅 Calendar View
 
@@ -64,8 +62,8 @@ Browse your tasting history by date:
 - Mini 3D cluster visualization per day
 - Tag clouds and taste profiles for each day
 
-<!-- Screenshot: Calendar panel with a selected day -->
-<!-- INSERT IMAGE: screenshots/calendar.png -->
+<img width="357" height="769" alt="日历" src="https://github.com/user-attachments/assets/4f685c3d-f072-4719-be97-17a9c41959b7" />
+
 
 ### 🤖 AI Sommelier
 
@@ -76,8 +74,7 @@ An embedded AI chat assistant for intelligent tasting analysis:
 - Semantic memory search (powered by EverOS) for recalling relevant past tastings
 - Distinctive **Möbius ring 3D visualization** with animated category ribbons
 
-<!-- Screenshot: AI Sommelier chat interface -->
-<!-- INSERT IMAGE: screenshots/sommelier.png -->
+<img width="1814" height="1169" alt="ai品鉴师" src="https://github.com/user-attachments/assets/fa3f73f9-d883-4733-802f-c4d9c73b8010" />
 
 ### 🔍 Search & Discovery
 
