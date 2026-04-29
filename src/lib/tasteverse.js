@@ -323,7 +323,66 @@ function logout(){
   var btn=document.getElementById('login-btn');
   var msg=document.getElementById('login-msg');
   var verifyGroup=document.getElementById('verify-group');
+  var resendLink=document.getElementById('resend-link');
   var step='email'; // 'email' or 'verify'
+  var resendTimer=null;
+
+  function startResendCountdown(seconds){
+    if(resendTimer)clearInterval(resendTimer);
+    var remaining=seconds;
+    resendLink.style.cursor='default';
+    resendLink.style.color='var(--text3)';
+    resendLink.style.textDecoration='none';
+    resendLink.textContent=remaining+' 秒后可重发';
+    resendTimer=setInterval(function(){
+      remaining--;
+      if(remaining<=0){
+        clearInterval(resendTimer);resendTimer=null;
+        resendLink.textContent='重新发送';
+        resendLink.style.cursor='pointer';
+        resendLink.style.color='var(--accent)';
+        resendLink.style.textDecoration='underline';
+      }else{
+        resendLink.textContent=remaining+' 秒后可重发';
+      }
+    },1000);
+  }
+
+  function sendCode(email,onSuccess,onError){
+    fetch('/api/auth/send-code',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({email:email})
+    }).then(function(r){return r.json().then(function(d){return {ok:r.ok,status:r.status,data:d};});})
+    .then(function(result){
+      if(!result.ok){
+        var e=new Error(result.data.error||'发送失败');
+        e.status=result.status;e.retryAfter=result.data.retryAfter;
+        throw e;
+      }
+      _verifyHash=result.data.hash;
+      _verifyExpiry=result.data.expiry;
+      onSuccess(result.data.cooldown||60);
+    }).catch(onError);
+  }
+
+  resendLink.onclick=function(){
+    if(resendTimer)return; // still cooling down
+    if(!_verifyEmail)return;
+    msg.textContent='正在重新发送...';msg.className='login-msg';
+    sendCode(_verifyEmail,function(cooldown){
+      msg.textContent='验证码已重新发送，请查收';msg.className='login-msg success';
+      startResendCountdown(cooldown);
+    },function(err){
+      console.error('[TasteVerse] resend error:',err);
+      if(err.status===429&&err.retryAfter){
+        startResendCountdown(err.retryAfter);
+        msg.textContent='请等待 '+err.retryAfter+' 秒后重试';msg.className='login-msg error';
+      }else{
+        msg.textContent='重发失败: '+(err.message||'请检查网络');msg.className='login-msg error';
+      }
+    });
+  };
 
   btn.onclick=function(){
     if(step==='email'){
@@ -336,18 +395,7 @@ function logout(){
       btn.textContent='发送中...';
       msg.textContent='正在发送验证码...';msg.className='login-msg';
 
-      // Call backend to generate code and send email
-      fetch('/api/auth/send-code',{
-        method:'POST',
-        headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({email:email})
-      }).then(function(r){return r.json().then(function(d){return {ok:r.ok,data:d};});})
-      .then(function(result){
-        if(!result.ok){
-          throw new Error(result.data.error||'发送失败');
-        }
-        _verifyHash=result.data.hash;
-        _verifyExpiry=result.data.expiry;
+      sendCode(email,function(cooldown){
         step='verify';
         verifyGroup.style.display='block';
         btn.disabled=false;
@@ -356,10 +404,16 @@ function logout(){
         msg.textContent='验证码已发送到 '+email+'，请查收邮箱（含垃圾箱）';
         msg.className='login-msg success';
         emailInput.disabled=true;
+        startResendCountdown(cooldown);
         setTimeout(function(){codeInput.focus();},100);
-      }).catch(function(err){
+      },function(err){
         console.error('[TasteVerse] send-code error:',err);
-        msg.textContent='发送失败: '+(err.message||'请检查网络');msg.className='login-msg error';
+        if(err.status===429&&err.retryAfter){
+          msg.textContent='发送过于频繁，请 '+err.retryAfter+' 秒后重试';
+        }else{
+          msg.textContent='发送失败: '+(err.message||'请检查网络');
+        }
+        msg.className='login-msg error';
         btn.disabled=false;btn.textContent='重新发送';
       });
     }else{

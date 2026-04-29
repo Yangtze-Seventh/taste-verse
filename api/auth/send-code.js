@@ -7,6 +7,12 @@
 
 import crypto from 'crypto';
 
+// In-memory rate limit cache (works across warm invocations).
+// Maps email -> last send timestamp (ms).
+const COOLDOWN_MS = 60 * 1000;
+const rateLimitCache = globalThis.__sendCodeRateLimit || new Map();
+globalThis.__sendCodeRateLimit = rateLimitCache;
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
@@ -15,6 +21,22 @@ export default async function handler(req, res) {
   const { email } = req.body || {};
   if (!email || !email.includes('@') || email.indexOf('.') < 3) {
     return res.status(400).json({ error: 'Invalid email' });
+  }
+
+  const emailKey = email.toLowerCase().trim();
+  const lastSent = rateLimitCache.get(emailKey);
+  if (lastSent && Date.now() - lastSent < COOLDOWN_MS) {
+    const retryAfter = Math.ceil((COOLDOWN_MS - (Date.now() - lastSent)) / 1000);
+    res.setHeader('Retry-After', String(retryAfter));
+    return res.status(429).json({ error: 'Too many requests', retryAfter });
+  }
+
+  // Cleanup expired entries to prevent unbounded growth
+  if (rateLimitCache.size > 1000) {
+    const now = Date.now();
+    for (const [k, t] of rateLimitCache) {
+      if (now - t > COOLDOWN_MS) rateLimitCache.delete(k);
+    }
   }
 
   const PUBLIC_KEY = process.env.EMAILJS_PUBLIC_KEY;
@@ -65,8 +87,11 @@ export default async function handler(req, res) {
     return res.status(502).json({ error: 'Failed to send email' });
   }
 
+  // Mark this email as just-sent (only after success, so failed sends don't lock the user out)
+  rateLimitCache.set(emailKey, Date.now());
+
   console.log('[auth/send-code] Code sent to', email);
 
   // Return hash + expiry (NOT the code)
-  res.status(200).json({ hash: hmac, expiry });
+  res.status(200).json({ hash: hmac, expiry, cooldown: COOLDOWN_MS / 1000 });
 }

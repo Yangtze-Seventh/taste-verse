@@ -31,6 +31,9 @@ export default function App() {
               <div className="input-group" id="verify-group" style={{ display: 'none' }}>
                 <label>验证码</label>
                 <input type="text" id="login-code" placeholder="6 位验证码" />
+                <div id="resend-row" style={{ marginTop: '6px', fontSize: '12px', color: 'var(--text3)', textAlign: 'right' }}>
+                  <span id="resend-link">重新发送</span>
+                </div>
               </div>
               <button className="login-btn" id="login-btn">发送验证码</button>
               <div className="login-msg" id="login-msg"></div>
