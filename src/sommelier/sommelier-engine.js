@@ -2820,18 +2820,192 @@ fileInputEl.addEventListener('change',e=>{
   fileInputEl.value='';
 });
 
-function send2(){
+// Helper: add message and return a reference so we can mutate it later (for loading states)
+function addMsgWithRef(tp,html,refs,imgs){
+  let page=curPage();
+  if(isPageFull(page)){
+    page.el.classList.add('archived');
+    const newPage=createPage();
+    curPageIdx=pages.length-1;
+    animateScrollTo(curPageIdx*stageH(), 500);
+    updateDots();
+    page=newPage;
+  }
+  const msg={tp,html,refs:refs||null,imgs:imgs||null,ts:fmtTs()};
+  page.msgs.push(msg);
+  renderPage(page);
+  return {msg,page};
+}
+
+// Cache for AI save cards — keyed by cardId, so the save button can fetch the data on click
+const _aiCardCache={};
+let _aiCardCounter=0;
+
+// Conversation history for AI sommelier (recent turns sent with each request for context)
+const _aiChatHistory=[];
+const _AI_HISTORY_MAX=12;
+function _pushAiHistory(role,content){
+  _aiChatHistory.push({role,content});
+  if(_aiChatHistory.length>_AI_HISTORY_MAX){
+    _aiChatHistory.splice(0,_aiChatHistory.length-_AI_HISTORY_MAX);
+  }
+}
+
+function _esc(s){return String(s==null?'':s).replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));}
+
+// Inline editable styles for AI save cards
+const _editStyleSpan='color:#fff;border-bottom:1px dashed rgba(255,255,255,.25);outline:none;padding:1px 4px;min-width:50px;display:inline-block;cursor:text';
+const _editStyleInput='background:transparent;border:none;border-bottom:1px dashed rgba(255,255,255,.25);color:#fff;outline:none;font:inherit;width:90px;padding:1px 2px';
+const _editStyleSelect='background:rgba(0,0,0,0.35);border:1px solid rgba(255,255,255,.15);color:#fff;outline:none;font:inherit;padding:2px 6px;border-radius:4px';
+const _editStyleNote='font-size:11px;color:#fff;margin-top:4px;padding:8px;background:rgba(0,0,0,0.18);border-radius:6px;outline:1px dashed rgba(255,255,255,.15);min-height:32px;cursor:text';
+
+function _normalizeScoreUI(v){
+  const n=Number(v);
+  if(!isFinite(n))return 7;
+  return Math.max(0,Math.min(10,Math.round(n>10?n/10:n)));
+}
+
+function buildAINewCard(reply,data,imgs){
+  const cardId='aic_'+(++_aiCardCounter);
+  const dataCopy=Object.assign({},data);
+  if(imgs&&imgs[0])dataCopy.photo=imgs[0];
+  _aiCardCache[cardId]={type:'new',data:dataCopy};
+
+  const cats=window.__tvCategories||{};
+  const catKeys=Object.keys(cats);
+
+  // Check if AI proposes a new category
+  const isNewCat=data.cat==='__new__'&&data.new_cat;
+  let catOptions;
+  if(isNewCat){
+    // Show all existing + AI's new suggestion (selected by default)
+    catOptions=`<option value="__new__" selected>+ 新建：${_esc(data.new_cat.icon||'📝')} ${_esc(data.new_cat.name||'未命名')}</option>`+
+      catKeys.map(k=>`<option value="${k}">${_esc(cats[k].name)}</option>`).join('');
+  }else{
+    const aiCat=data.cat&&cats[data.cat]?data.cat:catKeys[0];
+    catOptions=catKeys.map(k=>`<option value="${k}"${k===aiCat?' selected':''}>${_esc(cats[k].name)}</option>`).join('');
+  }
+
+  const score=_normalizeScoreUI(data.score);
+  const tagsStr=(data.tags||[]).join('、');
+
+  return `${reply?_esc(reply)+'<br>':''}<div class="pc" data-card-id="${cardId}">`+
+    `<h4>📝 新品鉴 · 可编辑后保存</h4>`+
+    `<div class="mr"><span>名称*</span><span contenteditable="true" data-field="name" style="${_editStyleSpan}">${_esc(data.name)||''}</span></div>`+
+    `<div class="mr"><span>品类*</span><select data-field="cat" style="${_editStyleSelect}">${catOptions}</select></div>`+
+    (isNewCat?`<div style="font-size:10px;color:var(--sub);margin:-4px 0 4px 70px">🌱 AI 建议新分类。如不需要，请在下拉里选已有分类。</div>`:'')+
+    `<div class="mr"><span>评分</span><input type="number" data-field="score" min="0" max="10" value="${score}" style="${_editStyleInput}"></div>`+
+    `<div class="mr"><span>风味</span><span contenteditable="true" data-field="tags" style="${_editStyleSpan}" data-placeholder="用 、或空格 分隔">${_esc(tagsStr)}</span></div>`+
+    `<div class="mr"><span>地点</span><span contenteditable="true" data-field="location" style="${_editStyleSpan}">${_esc(data.location||'')}</span></div>`+
+    `<div class="mr"><span>价格</span><input type="number" data-field="price" min="0" step="0.01" value="${data.price?_esc(data.price):''}" placeholder="选填" style="${_editStyleInput}"></div>`+
+    `<div style="margin-top:8px"><span style="font-size:11px;color:var(--sub)">笔记</span><div contenteditable="true" data-field="note" style="${_editStyleNote}">${_esc(data.note||'')}</div></div>`+
+    `<div style="display:flex;gap:8px;margin-top:10px">`+
+    `<button class="cb" onclick="window.__aiSaveCard('${cardId}',this)">✓ 确认保存</button>`+
+    `<button class="cb" style="border-color:var(--sub);color:var(--sub)" onclick="this.closest('.pc').remove()">取消</button>`+
+    `</div></div>`;
+}
+
+function buildAIRevisitCard(reply,matchedId,data,imgs){
+  const cardId='aic_'+(++_aiCardCounter);
+  const dataCopy=Object.assign({},data);
+  if(imgs&&imgs[0])dataCopy.photo=imgs[0];
+  _aiCardCache[cardId]={type:'revisit',noteId:matchedId,data:dataCopy};
+
+  const notes=window.__tvNotes||[];
+  const matched=notes.find(n=>n.id===matchedId);
+  const matchedName=matched?matched.name:'已有记录';
+  const score=_normalizeScoreUI(data.score);
+  const tagsStr=(data.tags||[]).join('、');
+
+  return `${reply?_esc(reply)+'<br>':''}<div class="pc" data-card-id="${cardId}">`+
+    `<h4>🔁 再次品鉴 · ${_esc(matchedName)}</h4>`+
+    `<div class="mr"><span>评分*</span><input type="number" data-field="score" min="0" max="10" value="${score}" style="${_editStyleInput}"></div>`+
+    `<div class="mr"><span>风味</span><span contenteditable="true" data-field="tags" style="${_editStyleSpan}">${_esc(tagsStr)}</span></div>`+
+    `<div class="mr"><span>价格</span><input type="number" data-field="price" min="0" step="0.01" value="${data.price?_esc(data.price):''}" placeholder="选填" style="${_editStyleInput}"></div>`+
+    `<div style="margin-top:8px"><span style="font-size:11px;color:var(--sub)">笔记</span><div contenteditable="true" data-field="note" style="${_editStyleNote}">${_esc(data.note||'')}</div></div>`+
+    `<div style="display:flex;gap:8px;margin-top:10px">`+
+    `<button class="cb" onclick="window.__aiSaveCard('${cardId}',this)">✓ 添加为再次品鉴</button>`+
+    `<button class="cb" style="border-color:var(--sub);color:var(--sub)" onclick="this.closest('.pc').remove()">取消</button>`+
+    `</div></div>`;
+}
+
+window.__aiSaveCard=function(cardId,btn){
+  const cached=_aiCardCache[cardId];
+  if(!cached){alert('数据已过期，请重新输入');return;}
+  const pc=btn.closest('.pc');
+  if(!pc)return;
+
+  // Read user-edited values from the card DOM
+  const readField=function(f){
+    const el=pc.querySelector('[data-field="'+f+'"]');
+    if(!el)return '';
+    if(el.tagName==='INPUT'||el.tagName==='SELECT')return el.value.trim();
+    return (el.textContent||'').trim();
+  };
+
+  const tagsRaw=readField('tags');
+  const data={
+    name:readField('name'),
+    cat:readField('cat'),
+    score:readField('score'),
+    tags:tagsRaw?tagsRaw.split(/[、,，\s]+/).filter(Boolean):[],
+    location:readField('location'),
+    price:parseFloat(readField('price'))||null,
+    note:readField('note'),
+    photo:cached.data.photo
+  };
+
+  // Validation
+  if(cached.type==='new'){
+    if(!data.name){alert('请填写名称');return;}
+    if(!data.cat){alert('请选择品类');return;}
+  }
+  if(!data.score||isNaN(parseFloat(data.score))){
+    alert('请填写评分（0-10）');return;
+  }
+
+  // If user kept the "__new__" cat, create the new category first
+  if(data.cat==='__new__'){
+    const newCatProposal=cached.data.new_cat;
+    if(!newCatProposal||!newCatProposal.name){
+      alert('新分类信息缺失，请改选已有分类');return;
+    }
+    if(window.__tvCreateCategory){
+      const newKey=window.__tvCreateCategory(newCatProposal);
+      if(!newKey){alert('创建新分类失败');return;}
+      data.cat=newKey;
+    }else{
+      alert('当前不支持创建新分类');return;
+    }
+  }
+
+  let saved=null;
+  if(cached.type==='new'&&window.__tvAddNote){
+    saved=window.__tvAddNote(data);
+  }else if(cached.type==='revisit'&&window.__tvAddVisit){
+    saved=window.__tvAddVisit(cached.noteId,data);
+  }
+
+  if(saved){
+    pc.innerHTML='<div style="text-align:center;padding:12px;color:#5ebe8e;font-size:13px">✓ 已保存到你的品鉴记忆</div>';
+    delete _aiCardCache[cardId];
+  }else{
+    alert('保存失败');
+  }
+};
+
+async function send2(){
   const t2=ciEl.value.trim();
   if(!t2&&pendingImgs.length===0)return;
   const imgs=pendingImgs.slice();
   pendingImgs=[];refreshAtch();
   ciEl.value='';
   addMsg('user',t2||'<span style="color:var(--sub)">[图片]</span>',null,imgs);
+
   // Check if this message is feedback for a previous thumbs-down
   if(window._pendingFeedbackRecId&&t2){
     const recId=window._pendingFeedbackRecId;
     window._pendingFeedbackRecId=null;
-    // Update the last matching feedback entry with the note
     for(let i=feedbackLog.length-1;i>=0;i--){
       if(feedbackLog[i].recId===recId&&feedbackLog[i].vote===-1){
         feedbackLog[i].note=t2;break;
@@ -2840,7 +3014,64 @@ function send2(){
     setTimeout(()=>addMsg('ai',`🔄 收到你的反馈："${t2.slice(0,60)}"。我会记住这次修正，下次溯源时改进。`),400);
     return;
   }
-  setTimeout(()=>{const rs=findR(t2||'图片');const refs=(rs.refs||[]).filter(Boolean);addMsg('ai',rs.r,refs);if(refs.length)uSrc(refs)},500+Math.random()*400);
+
+  // Show loading indicator
+  const sb=document.getElementById('sb');
+  if(sb)sb.disabled=true;
+  const loading=addMsgWithRef('ai','<span style="opacity:0.55">✦ 思考中…</span>');
+
+  const userText=t2||'[用户上传了一张图片，请基于已有记录推荐相关品鉴]';
+  try{
+    const notes=window.__tvNotes||[];
+    const cats=window.__tvCategories||{};
+    const r=await fetch('/api/ai/parse',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({
+        text:userText,
+        history:_aiChatHistory.slice(),
+        userId:window.__tvUserId||null,
+        categories:cats,
+        notes:notes
+      })
+    });
+    const result=await r.json();
+    if(!r.ok)throw new Error(result.error||'AI 服务异常');
+
+    // Save turn to conversation history for future context
+    _pushAiHistory('user',userText);
+    _pushAiHistory('assistant',JSON.stringify(result));
+
+    let html;
+    const notesNow=window.__tvNotes||[];
+    if(result.intent==='revisit'&&result.matched_note_id&&notesNow.find(n=>n.id===result.matched_note_id)){
+      html=buildAIRevisitCard(result.reply,result.matched_note_id,result.data||{},imgs);
+    }else if(result.intent==='new'||(result.intent==='revisit'&&result.data&&result.data.name)){
+      // Either explicitly new, or revisit but matched id is invalid → show editable new card
+      html=buildAINewCard(result.reply,result.data||{},imgs);
+    }else{
+      html=_esc(result.reply||'我没太理解，能再说一下吗？');
+    }
+    loading.msg.html=html;
+    renderPage(loading.page);
+
+    // Activate telescope/source-trace lens for any referenced records
+    const refIds=[];
+    if(result.intent==='revisit'&&result.matched_note_id)refIds.push(result.matched_note_id);
+    if(Array.isArray(result.referenced_ids)){
+      result.referenced_ids.forEach(id=>{if(id&&refIds.indexOf(id)<0)refIds.push(id);});
+    }
+    if(refIds.length){
+      const refs=refIds.map(id=>RC.find(r=>r.id===id)).filter(Boolean);
+      if(refs.length)uSrc(refs);
+    }
+  }catch(e){
+    console.error('[Sommelier] AI parse error:',e);
+    loading.msg.html='<span style="color:#e85050;font-size:12px">出错了：'+_esc(e.message||'网络异常')+'</span>';
+    renderPage(loading.page);
+  }finally{
+    if(sb)sb.disabled=false;
+  }
 }
 document.getElementById('sb').addEventListener('click',send2);
 ciEl.addEventListener('keydown',e=>{if(e.key==='Enter')send2()});

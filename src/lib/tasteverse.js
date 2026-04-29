@@ -2990,6 +2990,7 @@ function showDetail(note){
       visitsHtml+='<div class="dp-visit-item"><div><span class="vi-score" style="color:'+cat.color+'">'+v.score+'</span><span style="opacity:0.4;font-size:10px">/10 · 第'+(i+2)+'次 · '+v.time+(v.price?' · ¥'+v.price.price:'')+'</span></div>';
       if(v.tags&&v.tags.length)visitsHtml+='<div class="vi-tags">'+v.tags.map(function(t){return '<span class="vi-tag">'+t+'</span>';}).join('')+'</div>';
       if(v.note)visitsHtml+='<div style="margin-top:4px;font-size:11px;color:var(--text3)">'+v.note.substring(0,80)+(v.note.length>80?'...':'')+'</div>';
+      if(v.photo)visitsHtml+='<div style="margin-top:6px;border-radius:6px;overflow:hidden;max-height:140px"><img src="'+v.photo+'" style="width:100%;display:block"></div>';
       visitsHtml+='</div>';
     });
     visitsHtml+='</div>';
@@ -3018,6 +3019,9 @@ function showDetail(note){
       +'<div class="price-inputs"><div id="rt-price-unit-group" style="display:flex;align-items:center;gap:6px"><input type="number" id="rt-price" placeholder="0.00" min="0" step="0.01" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="font-size:11px;color:var(--text3)">元</span></div>'
       +'<div id="rt-price-avg-group" style="display:none"><div style="display:flex;gap:8px;align-items:center"><input type="number" id="rt-price-total" placeholder="总价" min="0" step="0.01" style="flex:1;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="color:var(--text3);font-size:12px">÷</span><input type="number" id="rt-price-people" placeholder="人数" min="1" step="1" value="2" style="width:68px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:12px;font-family:inherit;outline:none"><span style="font-size:11px;color:var(--text3)">人</span></div><div class="price-avg-result" id="rt-price-avg-result"></div></div>'
       +'</div></div>'
+      +'<label>图片 <span style="opacity:0.4;font-weight:400">（选填）</span></label>'
+      +'<input type="file" id="rt-photo" accept="image/*" capture="environment" style="width:100%;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,0.05);background:var(--surface3);color:var(--text);font-size:11px;font-family:inherit;outline:none;cursor:pointer">'
+      +'<div id="rt-photo-preview" style="display:none;margin-top:6px;border-radius:8px;overflow:hidden;max-height:160px"><img id="rt-photo-img" style="width:100%;display:block"></div>'
       +'<div class="rt-actions"><button class="rt-btn rt-btn-cancel" id="rt-cancel">取消</button><button class="rt-btn rt-btn-save" id="rt-save">保存</button></div>'
     +'</div>'
     +(rel.length?'<div class="dp-rel"><h4>记忆关联 · '+rel.length+'</h4>'+rel.map(function(r){
@@ -3110,6 +3114,23 @@ function showDetail(note){
   document.getElementById('rt-price-total').oninput=calcRtAvgPrice;
   document.getElementById('rt-price-people').oninput=calcRtAvgPrice;
 
+  // Re-taste photo upload
+  var rtUploadedPhotoData=null;
+  var rtPhotoEl=document.getElementById('rt-photo');
+  var rtPhotoPreview=document.getElementById('rt-photo-preview');
+  var rtPhotoImg=document.getElementById('rt-photo-img');
+  rtPhotoEl.onchange=function(){
+    var file=rtPhotoEl.files[0];
+    if(!file)return;
+    var reader=new FileReader();
+    reader.onload=function(e){
+      rtUploadedPhotoData=e.target.result;
+      rtPhotoImg.src=rtUploadedPhotoData;
+      rtPhotoPreview.style.display='block';
+    };
+    reader.readAsDataURL(file);
+  };
+
   document.getElementById('btn-retaste').onclick=function(){
     rtForm.classList.toggle('open');
   };
@@ -3135,6 +3156,7 @@ function showDetail(note){
       time:new Date().toISOString().split('T')[0]
     };
     if(rtPriceData)visitObj.price=rtPriceData;
+    if(rtUploadedPhotoData)visitObj.photo=rtUploadedPhotoData;
     note.visits.push(visitObj);
     saveUserData();
     EverOS.update(note); // Update memory with new visit
@@ -3156,6 +3178,91 @@ function startApp(){
   // Expose data for V29 sommelier engine to consume when embedded
   window.__tvNotes=notes;
   window.__tvCategories=CATEGORIES;
+  // Expose save APIs for AI sommelier chat to write back records
+  // Helper: clamp + round score to our app's format (integer 0-10)
+  function _normalizeScore(v){
+    var n=Number(v);
+    if(!isFinite(n))return 7;
+    // If LLM accidentally returned 0-100, scale down
+    if(n>10)n=n/10;
+    return Math.max(0,Math.min(10,Math.round(n)));
+  }
+  // Expose USER_ID so AI sommelier can pass it to /api/ai/parse for EverOS lookup
+  window.__tvUserId=USER_ID;
+  // Create a new category dynamically (used by AI flow when AI suggests a new cat)
+  window.__tvCreateCategory=function(catData){
+    if(!catData||!catData.name)return null;
+    // Sanitize key: prefer AI-provided key, fall back to timestamp-based
+    var key=(catData.key||'').toString().toLowerCase().replace(/[^a-z0-9_]/g,'_').replace(/^_+|_+$/g,'');
+    if(!key||CATEGORIES[key])key='custom_'+Date.now();
+    var parent=catData.parent;
+    if(!parent||!TAXONOMY[parent]){
+      // Default to "other" top-level group
+      if(!TAXONOMY.other)TAXONOMY.other={name:'其他',children:[]};
+      parent='other';
+    }
+    var color='#'+Math.floor(Math.random()*0x999999+0x333333).toString(16).padStart(6,'0');
+    CATEGORIES[key]={
+      name:catData.name,
+      icon:catData.icon||'📝',
+      color:color,
+      parent:parent
+    };
+    if(TAXONOMY[parent].children.indexOf(key)<0)TAXONOMY[parent].children.push(key);
+    saveUserData();
+    populateCatSelects();
+    renderCategories();
+    window.__tvCategories=CATEGORIES;
+    console.log('[TasteVerse] Created new category:',key,'→',catData.name);
+    return key;
+  };
+  window.__tvAddNote=function(data){
+    // data: {name, cat, score, tags, note, location, price, photo}
+    // Validate cat: must be a key in CATEGORIES, otherwise fall back
+    var catKey=data.cat;
+    if(!catKey||!CATEGORIES[catKey]){
+      // Try matching by Chinese name (in case AI returned name instead of key)
+      var matchByName=Object.keys(CATEGORIES).find(function(k){return CATEGORIES[k].name===data.cat;});
+      catKey=matchByName||Object.keys(CATEGORIES)[0];
+      console.warn('[TasteVerse] AI returned unknown cat "'+data.cat+'", using "'+catKey+'"');
+    }
+    var noteObj={
+      id:'n'+Date.now(),
+      cat:catKey,
+      name:data.name||'未命名',
+      score:_normalizeScore(data.score),
+      tags:Array.isArray(data.tags)?data.tags.slice():[],
+      note:data.note||'',
+      time:new Date().toISOString().split('T')[0],
+      location:data.location||''
+    };
+    if(data.price&&Number(data.price)>0)noteObj.price={type:'unit',price:Number(data.price)};
+    if(data.photo)noteObj.photo=data.photo;
+    notes.push(noteObj);
+    saveUserData();
+    if(typeof EverOS!=='undefined'&&EverOS.update)EverOS.update(noteObj);
+    refreshGraph();
+    window.__tvNotes=notes;
+    return noteObj;
+  };
+  window.__tvAddVisit=function(noteId,visitData){
+    var target=notes.find(function(n){return n.id===noteId;});
+    if(!target)return null;
+    if(!target.visits)target.visits=[];
+    var visit={
+      score:_normalizeScore(visitData.score),
+      tags:Array.isArray(visitData.tags)?visitData.tags.slice():[],
+      note:visitData.note||'',
+      time:new Date().toISOString().split('T')[0]
+    };
+    if(visitData.price&&Number(visitData.price)>0)visit.price={type:'unit',price:Number(visitData.price)};
+    if(visitData.photo)visit.photo=visitData.photo;
+    target.visits.push(visit);
+    saveUserData();
+    if(typeof EverOS!=='undefined'&&EverOS.update)EverOS.update(target);
+    refreshGraph();
+    return target;
+  };
   // Check EverOS connection and update status indicator
   EverOS.checkConnection(function(online){
     var dot=document.getElementById('everos-dot');

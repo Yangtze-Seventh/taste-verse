@@ -5,7 +5,8 @@
   "rewrites": [
     { "source": "/api/auth/send-code", "destination": "/api/auth/send-code" },
     { "source": "/api/auth/verify-code", "destination": "/api/auth/verify-code" },
+    { "source": "/api/ai/parse", "destination": "/api/ai/parse" },
     { "source": "/api/everos/:path*", "destination": "/api/everos/[...path]" },
-    { "source": "/((?!api).*)", "destination": "/index.html" }
+    { "source": "/((?!api/)(?!@)(?!src/)(?!node_modules/)(?!.*\\.).*)", "destination": "/index.html" }
   ]
 }
